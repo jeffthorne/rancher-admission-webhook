@@ -23,6 +23,7 @@ def get_namespace(request):
 
 def get_namespace_labels(namespace):
     resp = v1.read_namespace(namespace)
+    labels = None
     print("*** START NAMESPACE OBJECT *****************************************************")
     print(resp)
     print("*** END NAMESPACE OBJECT *******************************************************")
