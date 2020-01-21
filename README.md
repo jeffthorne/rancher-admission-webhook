@@ -8,12 +8,16 @@ STATUS: experimental
 
 ## Configuration
 In the file deploy/setup.sh<br/><br/>
-LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId   #label key to insert into deployments<br/>
-NAMESPACE=default     # namespace to deploy webhook, SA, ClusterRole, ClusterRoleBinding, etc
-IMAGE_NAME=imagename/addlabel:latest  #webhook image name
+LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId<br/>
+LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId<br/>
+IMAGE_NAME=imagename/addlabel:latest  #webhook image name. 
 
 ## Installation
 1. ./deploy/setup.sh 
+
+## Tests
+To run tests: python -m unittest test/test_request.py <br/>
+Assumes >= Python 3.7.4<br/><br/>
 
 ## Overview
 ![alt tag](webhook_overview.png?raw=true "overview")<!-- .element height="50%" width="50%" -->

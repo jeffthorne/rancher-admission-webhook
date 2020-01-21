@@ -19,4 +19,4 @@ deploy/certs/*.conf
 deploy/*.yaml
 secret.yaml
 config_local.yaml
-test/
+

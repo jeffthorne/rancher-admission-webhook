@@ -1,9 +1,9 @@
 ### configuraton
-IMAGE_NAME=jeffthorne/addlabel:latest
+IMAGE_NAME=jeffthorne/addlabel:latest   #this script will build and push an image with this name. Registry access assumed.
 MAINTAINER='Jeff Thorne'
 EMAIL='jthorne@u.washington.edu'
-LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId   #label key to insert into deployments
-NAMESPACE=default                                           #deployment -namespace
+LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId
+LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId #label key to insert into deployments
 ### end configuraton
 
 cat <<EOF >deploy/Dockerfile
@@ -13,7 +13,8 @@ MAINTAINER $MAINTAINER
 ENV FLASK_APP=/app/add_label.py
 ENV FLASK_DEBUG=1
 ENV FLASK_ENV=default
-ENV LABEL_KEY=$LABEL_KEY_TO_ADD_TO_DEPLOYMENTS
+ENV LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=$LABEL_KEY_TO_ADD_TO_DEPLOYMENTS
+ENV LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=$LABEL_KEY_LOOKING_FOR_ON_NAMESPACE
 WORKDIR /app
 EXPOSE 443
 
@@ -35,6 +36,7 @@ docker push $IMAGE_NAME
 
 docker run --rm -v `pwd`/deploy/certs:/certs jordi/openssl bash /certs/generate_certs.sh
 
+NAMESPACE=default
 
 cat <<EOF >deploy/cluster_role.yaml
 apiVersion: v1
@@ -46,6 +48,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: addlabel-role
+  namespace: $NAMESPACE
 rules:
 - apiGroups: [""]
   resources: ["namespaces"]
@@ -55,6 +58,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: addlabel-rolebinding
+  namespace: $NAMESPACE
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

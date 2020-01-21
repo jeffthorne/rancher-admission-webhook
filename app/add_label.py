@@ -3,64 +3,47 @@ from flask import Flask, request, jsonify
 import base64
 import jsonpatch
 from kubernetes import client, config
+import utils
 
 admission_controller = Flask(__name__)
-
-running_in_cluster = True
-
-LABEL_KEY = os.getenv('LABEL_KEY')  #label key to insert into deployments
+LABEL_KEY_TO_ADD_TO_DEPLOYMENTS = os.getenv('LABEL_KEY_TO_ADD_TO_DEPLOYMENTS')  #label key to insert into deployments
+LABEL_KEY_LOOKING_FOR_ON_NAMESPACE = os.getenv('LABEL_KEY_LOOKING_FOR_ON_NAMESPACE')
 config.load_incluster_config()
 v1 = client.CoreV1Api()
 
 
-def get_namespace(request):
-    namespace = None
-    if 'request' in request and 'namespace' in request['request']:
-        namespace = request["request"]["namespace"]
-
-    return namespace
-
-
 def get_namespace_labels(namespace):
     resp = v1.read_namespace(namespace)
-    labels = None
-    print("*** START NAMESPACE OBJECT *****************************************************")
-    print(resp)
-    print("*** END NAMESPACE OBJECT *******************************************************")
-
-    if hasattr(resp, 'metadata') and hasattr(resp.metadata, 'labels'):
-        if resp.metadata.labels is not None and 'field.cattle.io/projectId' in resp.metadata.labels.keys():
-            labels = {'field.cattle.io/projectId': resp.metadata.labels['field.cattle.io/projectId']}
+    labels = utils.parse_namespace_label(resp, LABEL_KEY_LOOKING_FOR_ON_NAMESPACE)
+    utils.logging('NAMESPACE OBJECT', resp)
 
     return labels
-
 
 
 @admission_controller.route('/add/labels/deployments', methods=['POST'])
 def add_labels_deployment():
     request_info = request.get_json()
-    print("*** START DEPLOYMENT OBJECT *****************************************************")
-    print(request_info)
-    print("*** END DEPLOYMENT OBJECT *******************************************************")
+    utils.logging('DEPLOYMENT OBJECT', request_info)
 
-    namespace = get_namespace(request_info)
-    projectId = ""
+    namespace = utils.get_namespace(request_info)
 
     if namespace is not None:
         labels = get_namespace_labels(namespace)
-        if labels is not None:
-            projectId = labels[LABEL_KEY]
-        print("*** START LABELS FOUND *******************************************************")
-        print(labels)
-        print("*** END LABELS FOUND *******************************************************")
 
-    if labels is not None:
-        label_key = LABEL_KEY.replace('/', '~1')
-        return admission_response_patch(True, "Adding Rancher ProjectId Label to Deployment",
-                                    json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/spec/template/metadata/labels/{label_key}",
-                                                                     "value": projectId}]))
-    else:
-        return jsonify({"response": {"allowed": True, "status": {"message": "No Rancher ProjectId found"}}})
+        if labels is not None:
+            projectId = labels[LABEL_KEY_LOOKING_FOR_ON_NAMESPACE]
+            label_key = LABEL_KEY_TO_ADD_TO_DEPLOYMENTS.replace('/', '~1')
+
+            utils.logging('LABELS FOUND', f"{labels} on namespace {namespace}")
+            utils.logging('LABELS APPLIED', f"{label_key}={projectId} on pod template." )
+
+            return admission_response_patch(True, "Adding Rancher ProjectId Label to Deployment",
+                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/spec/template/metadata/labels/{label_key}",
+                                                                        "value": projectId}]))
+
+    utils.logging('LABEL NOT FOUND', f"{LABEL_KEY_LOOKING_FOR_ON_NAMESPACE} not found on namespace {namespace}")
+
+    return jsonify({"response": {"allowed": True, "status": {"message": "No Rancher ProjectId found"}}})
 
 
 def admission_response_patch(allowed, message, json_patch):
