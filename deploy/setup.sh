@@ -7,7 +7,7 @@ LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId #label key to insert i
 ### end configuraton
 
 cat <<EOF >deploy/Dockerfile
-FROM python:3.7-slim
+FROM python:3.8.1-alpine
 MAINTAINER $MAINTAINER
 
 ENV FLASK_APP=/app/add_label.py
@@ -19,7 +19,7 @@ WORKDIR /app
 EXPOSE 443
 
 
-RUN apt-get update
+RUN apk update
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
