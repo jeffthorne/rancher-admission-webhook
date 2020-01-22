@@ -1,6 +1,4 @@
 import unittest
-import datetime
-from dateutil.tz import tzlocal
 
 from app.utils import get_namespace, parse_namespace_label
 import kubernetes
@@ -13,7 +11,7 @@ namespace_obj = {'api_version': 'v1',
                               'field.cattle.io/projectId': 'c-prhdq:p-fblnp',
                               'lifecycle.cattle.io/create.namespace-auth': 'true'},
               'cluster_name': None,
-              'creation_timestamp': datetime.datetime(2019, 3, 1, 18, 6, 45, tzinfo=tzlocal()),
+              'creation_timestamp': 'fake date',
               'deletion_grace_period_seconds': None,
               'deletion_timestamp': None,
               'finalizers': ['controller.cattle.io/namespace-auth'],
