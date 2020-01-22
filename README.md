@@ -10,7 +10,10 @@ STATUS: experimental
 In the file deploy/setup.sh<br/><br/>
 LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId<br/>
 LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId<br/>
-IMAGE_NAME=imagename/addlabel:latest  #webhook image name. 
+IMAGE_NAME=imagename/addlabel:latest  #webhook image name.<br/><br/>
+
+assumes --enable-admission-plugins=MutatingAdmissionWebhook enabled on k8s api server.<br/>
+https://kubernetes.io/blog/2019/03/21/a-guide-to-kubernetes-admission-controllers <br/><br/>
 
 ## Installation
 1. ./deploy/setup.sh 
