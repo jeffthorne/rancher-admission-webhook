@@ -1,12 +1,42 @@
+#!/bin/bash
+# vim: syntax=sh ts=4 sts=4 sw=4 expandtab
+
+# Abort if any command exits non-zero
+set -e
+
+PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+
 ### configuraton
-IMAGE_NAME=jeffthorne/addlabel:latest   #this script will build and push an image with this name. Registry access assumed.
+IMAGE_NAME="docker-registry.qualcomm.com/drekar/aqua-addlabel:0.1" #this script will build and push an image with this name. Registry access assumed.
 MAINTAINER='Jeff Thorne'
 EMAIL='jthorne@u.washington.edu'
-LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId
-LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=field.cattle.io/projectId #label key to insert into deployments
+LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId #the label key on the parent namespace that contains the project ID
+LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=drekar.qualcomm.com/projectId #label key to tattoo into deployments
+NAMESPACE=aqua-addlabel-webhook
+BUILD_DIR=/tmp/aqua-addlabel-deploy # should be on local disk, not NFS
 ### end configuraton
 
-cat <<EOF >deploy/Dockerfile
+# Ensure we have a $KUBECONFIG set
+echo "Checking for KUBECONFIG..."
+if [ -z "$KUBECONFIG" ] || [ ! -r "$KUBECONFIG" ]; then
+    echo "ERROR: KUBECONFIG not set"
+    exit 1
+fi
+
+# Ensure our namespace exists before proceeding
+echo "Checking for $NAMESPACE namespace..."
+if ! kubectl get namespace $NAMESPACE >/dev/null 2>&1; then
+    echo "ERROR: Namespace $NAMESPACE does not exist. Please create it in the System project to continue"
+    exit 1
+fi
+
+# Ensure our build dir exists
+echo "Creating $BUILD_DIR/{deploy,secrets}..."
+mkdir -p $BUILD_DIR/deploy
+mkdir -p $BUILD_DIR/certs
+
+echo "Creating $BUILD_DIR/deploy/Dockerfile..."
+cat <<EOF >$BUILD_DIR/deploy/Dockerfile
 FROM python:3.8.1-alpine
 MAINTAINER $MAINTAINER
 
@@ -31,23 +61,27 @@ CMD python add_label.py
 EOF
 
 
-docker build -t $IMAGE_NAME --file ./deploy/Dockerfile .
+echo "Building $IMAGE_NAME..."
+docker build -t $IMAGE_NAME --file $BUILD_DIR/deploy/Dockerfile .
+echo "Pushing $IMAGE_NAME..."
 docker push $IMAGE_NAME
 
-docker run --rm -v `pwd`/deploy/certs:/certs jordi/openssl bash /certs/generate_certs.sh
+echo "Creating certificates in $BUILD_DIR/certs..."
+cp deploy/certs/generate_certs.sh $BUILD_DIR/certs/
+docker run --rm -v $BUILD_DIR/certs:/certs jordi/openssl bash /certs/generate_certs.sh
 
-NAMESPACE=default
-
-cat <<EOF >deploy/cluster_role.yaml
+echo "Creating $BUILD_DIR/deploy/cluster_role.yaml..."
+cat <<EOF >$BUILD_DIR/deploy/cluster_role.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: addlabel-sa
+  namespace: $NAMESPACE
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: addlabel-role
+  name: aqua-addlabel-role
   namespace: $NAMESPACE
 rules:
 - apiGroups: [""]
@@ -57,19 +91,20 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: addlabel-rolebinding
+  name: aqua-addlabel-rolebinding
   namespace: $NAMESPACE
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: addlabel-role
+  name: aqua-addlabel-role
 subjects:
 - kind: ServiceAccount
   name: addlabel-sa
   namespace: $NAMESPACE
 EOF
 
-cat <<EOF >deploy/register_controller.yaml
+echo "Creating $BUILD_DIR/deploy/register_controller.yaml..."
+cat <<EOF >$BUILD_DIR/deploy/register_controller.yaml
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -85,7 +120,7 @@ webhooks:
         name: addlabel-webhook
         namespace: $NAMESPACE
         path: /add/labels/deployments
-      caBundle: $(cat deploy/certs/ca.crt | base64 | tr -d '\n') # a base64 encoded self signed ca cert is needed because all Admission Webhooks need to be on SSL
+      caBundle: $(cat $BUILD_DIR/certs/ca.crt | base64 | tr -d '\n') # a base64 encoded self signed ca cert is needed because all Admission Webhooks need to be on SSL
     rules:
       - apiGroups: ["*"]
         resources: ["deployments"]
@@ -93,8 +128,8 @@ webhooks:
         operations: ["CREATE", "UPDATE"]
 EOF
 
-
-cat <<EOF >deploy/deploy_controller.yaml
+echo "Creating $BUILD_DIR/deploy/deploy_controller.yaml..."
+cat <<EOF >$BUILD_DIR/deploy/deploy_controller.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -115,7 +150,7 @@ metadata:
   labels:
     app: add-labels
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: add-labels
@@ -152,17 +187,26 @@ spec:
             secretName: "addlabel-certs"
 EOF
 
-kubectl create namespace $NAMESPACE
-kubectl delete secret addlabel-certs -n $NAMESPACE
-kubectl create secret generic addlabel-certs --from-file deploy/certs/server.key --from-file deploy/certs/server.crt -n $NAMESPACE
+echo "Cleaning up existing resources..."
+kubectl delete secret addlabel-certs -n $NAMESPACE 2>/dev/null || true
+kubectl delete -f $BUILD_DIR/deploy/cluster_role.yaml -n $NAMESPACE 2>/dev/null || true
+kubectl delete -f $BUILD_DIR/deploy/deploy_controller.yaml -n $NAMESPACE 2>/dev/null || true
+kubectl delete -f $BUILD_DIR/deploy/register_controller.yaml -n $NAMESPACE 2>/dev/null || true
 
+echo "Creating secret addlabel-certs in $NAMESPACE namespace..."
+kubectl create secret generic addlabel-certs --from-file $BUILD_DIR/certs/server.key --from-file $BUILD_DIR/certs/server.crt -n $NAMESPACE
 
-kubectl delete -f deploy/cluster_role.yaml -n $NAMESPACE
-kubectl create -f deploy/cluster_role.yaml
+echo "Creating service account and ClusterRole..."
+kubectl create -f $BUILD_DIR/deploy/cluster_role.yaml
 
-kubectl delete -f deploy/deploy_controller.yaml -n $NAMESPACE
-kubectl create -f deploy/deploy_controller.yaml
+echo "Creating admission controller..."
+kubectl create -f $BUILD_DIR/deploy/deploy_controller.yaml
 
-kubectl delete -f deploy/register_controller.yaml -n $NAMESPACE
-kubectl create -f deploy/register_controller.yaml
+echo "Registering admission controller..."
+kubectl create -f $BUILD_DIR/deploy/register_controller.yaml
+
+echo "Deployment complete."
+echo "Resource manifests are in $BUILD_DIR/deploy"
+echo "Certificates are in $BUILD_DIR/certs"
+exit 0
 
