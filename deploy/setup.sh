@@ -110,7 +110,6 @@ apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
   name: addlabel-admission-hook-config
-  namespace: $NAMESPACE
   labels:
     component: mutating-controller
 webhooks:
