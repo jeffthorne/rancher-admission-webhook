@@ -7,7 +7,7 @@ set -e
 PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
 
 ### configuraton
-IMAGE_NAME="docker-registry.qualcomm.com/drekar/aqua-addlabel:0.2" #this script will build and push an image with this name. Registry access assumed.
+IMAGE_NAME="docker-registry.qualcomm.com/drekar/aqua-addlabel:0.11"
 MAINTAINER='Jeff Thorne'
 EMAIL='jthorne@u.washington.edu'
 LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId #the label key on the parent namespace that contains the project ID
@@ -15,6 +15,7 @@ LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=drekar.qualcomm.com/projectId #label key to tatt
 SERVICE_NAME=addlabel-webhook
 NAMESPACE=aqua-addlabel-webhook
 BUILD_DIR=/tmp/aqua-addlabel-deploy # should be on local disk, not NFS
+DEBUG=0
 ### end configuraton
 
 # Ensure we have a $KUBECONFIG set
@@ -38,29 +39,28 @@ mkdir -p $BUILD_DIR/certs
 
 echo "Creating $BUILD_DIR/deploy/Dockerfile..."
 cat <<EOF >$BUILD_DIR/deploy/Dockerfile
-FROM python:3.8.1-alpine
+FROM python:3.8-alpine
 MAINTAINER $MAINTAINER
-
-ENV FLASK_APP=/app/add_label.py
-ENV FLASK_DEBUG=1
-ENV FLASK_ENV=default
-ENV LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=$LABEL_KEY_TO_ADD_TO_DEPLOYMENTS
-ENV LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=$LABEL_KEY_LOOKING_FOR_ON_NAMESPACE
-WORKDIR /app
-EXPOSE 443
-
-
-RUN apk update
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
+ENV FLASK_APP=/app/add_label.py
+ENV FLASK_ENV=default
 
+EXPOSE 443
+
+
+WORKDIR /app
 COPY app/requirements.txt /
-RUN pip install -r /requirements.txt
+RUN apk update && pip install -r /requirements.txt
 COPY app /app
-CMD python add_label.py
-EOF
 
+CMD python add_label.py
+
+ENV LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=$LABEL_KEY_TO_ADD_TO_DEPLOYMENTS
+ENV LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=$LABEL_KEY_LOOKING_FOR_ON_NAMESPACE
+ENV FLASK_DEBUG=$DEBUG
+EOF
 
 echo "Building $IMAGE_NAME..."
 docker build -t $IMAGE_NAME --file $BUILD_DIR/deploy/Dockerfile .
@@ -178,6 +178,8 @@ spec:
               value: /certs/server.crt
             - name: TLS_SERVER_KEY_FILEPATH
               value: /certs/server.key
+            - name: WEBHOOK_DEBUG
+              value: "$DEBUG"
           volumeMounts:
             - name: "certs"
               mountPath: "/certs"
