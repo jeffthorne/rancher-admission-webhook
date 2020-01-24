@@ -20,10 +20,10 @@ def get_namespace_labels(namespace):
     return labels
 
 
-@admission_controller.route('/add/labels/deployments', methods=['POST'])
+@admission_controller.route('/addlabel', methods=['POST'])
 def add_labels_deployment():
     request_info = request.get_json()
-    utils.logging('DEPLOYMENT OBJECT', request_info)
+    utils.logging('POD OBJECT', request_info)
 
     namespace = utils.get_namespace(request_info)
 
@@ -37,9 +37,8 @@ def add_labels_deployment():
             utils.logging('LABELS FOUND', f"{labels} on namespace {namespace}")
             utils.logging('LABELS APPLIED', f"{label_key}={projectId} on pod template." )
 
-            return admission_response_patch(True, "Adding Rancher ProjectId Label to Deployment",
-                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/spec/template/metadata/labels/{label_key}",
-                                                                        "value": projectId}]))
+            return admission_response_patch(True, "Adding Rancher ProjectId Label to Pod",
+                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/metadata/labels/{label_key}", "value": projectId}]))
 
     utils.logging('LABEL NOT FOUND', f"{LABEL_KEY_LOOKING_FOR_ON_NAMESPACE} not found on namespace {namespace}")
 

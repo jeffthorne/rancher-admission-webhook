@@ -7,7 +7,7 @@ set -e
 PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
 
 ### configuraton
-IMAGE_NAME="docker-registry.qualcomm.com/drekar/aqua-addlabel:0.1" #this script will build and push an image with this name. Registry access assumed.
+IMAGE_NAME="docker-registry.qualcomm.com/drekar/aqua-addlabel:0.2" #this script will build and push an image with this name. Registry access assumed.
 MAINTAINER='Jeff Thorne'
 EMAIL='jthorne@u.washington.edu'
 LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId #the label key on the parent namespace that contains the project ID
@@ -120,11 +120,11 @@ webhooks:
       service:
         name: addlabel-webhook
         namespace: $NAMESPACE
-        path: /add/labels/deployments
+        path: /addlabel
       caBundle: $(cat $BUILD_DIR/certs/ca.crt | base64 | tr -d '\n') # a base64 encoded self signed ca cert is needed because all Admission Webhooks need to be on SSL
     rules:
       - apiGroups: ["*"]
-        resources: ["deployments"]
+        resources: ["pods"]
         apiVersions: ["*"]
         operations: ["CREATE", "UPDATE"]
 EOF
