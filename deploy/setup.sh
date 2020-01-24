@@ -12,6 +12,7 @@ MAINTAINER='Jeff Thorne'
 EMAIL='jthorne@u.washington.edu'
 LABEL_KEY_LOOKING_FOR_ON_NAMESPACE=field.cattle.io/projectId #the label key on the parent namespace that contains the project ID
 LABEL_KEY_TO_ADD_TO_DEPLOYMENTS=drekar.qualcomm.com/projectId #label key to tattoo into deployments
+SERVICE_NAME=addlabel-webhook
 NAMESPACE=aqua-addlabel-webhook
 BUILD_DIR=/tmp/aqua-addlabel-deploy # should be on local disk, not NFS
 ### end configuraton
@@ -68,7 +69,7 @@ docker push $IMAGE_NAME
 
 echo "Creating certificates in $BUILD_DIR/certs..."
 cp deploy/certs/generate_certs.sh $BUILD_DIR/certs/
-docker run --rm -v $BUILD_DIR/certs:/certs jordi/openssl bash /certs/generate_certs.sh
+docker run --rm -v $BUILD_DIR/certs:/certs jordi/openssl bash /certs/generate_certs.sh $SERVICE_NAME.$NAMESPACE.svc
 
 echo "Creating $BUILD_DIR/deploy/cluster_role.yaml..."
 cat <<EOF >$BUILD_DIR/deploy/cluster_role.yaml
@@ -133,7 +134,7 @@ cat <<EOF >$BUILD_DIR/deploy/deploy_controller.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: addlabel-webhook
+  name: $SERVICE_NAME
   namespace: $NAMESPACE
 spec:
   ports:
