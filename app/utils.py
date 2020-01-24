@@ -1,12 +1,5 @@
-
-
-def get_namespace(request):
-    namespace = None
-    if 'request' in request and 'namespace' in request['request']:
-        namespace = request["request"]["namespace"]
-
-    return namespace
-
+import os
+from pprint import pprint
 
 def parse_namespace_label(namespace_object, find_label):
     labels = None
@@ -18,7 +11,8 @@ def parse_namespace_label(namespace_object, find_label):
     return labels
 
 
-def logging(title, message):
-    print(f"*** START {title} *****************************************************")
-    print(message)
-    print(f"*** END {title} *******************************************************")
+def debug(title, message):
+    if os.environ.get("WEBHOOK_DEBUG", "0") == "1":
+        print(f"*** START {title} *****************************************************")
+        pprint(message)
+        print(f"*** END {title} *******************************************************")

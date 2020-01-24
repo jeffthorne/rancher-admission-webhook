@@ -15,36 +15,45 @@ v1 = client.CoreV1Api()
 def get_namespace_labels(namespace):
     resp = v1.read_namespace(namespace)
     labels = utils.parse_namespace_label(resp, LABEL_KEY_LOOKING_FOR_ON_NAMESPACE)
-    utils.logging('NAMESPACE OBJECT', resp)
+    utils.debug('NAMESPACE OBJECT', resp)
 
     return labels
 
 
-@admission_controller.route('/add/labels/deployments', methods=['POST'])
+@admission_controller.route('/addlabel', methods=['POST'])
 def add_labels_deployment():
     request_info = request.get_json()
-    utils.logging('DEPLOYMENT OBJECT', request_info)
+    utils.debug('REQUEST OBJECT', request_info)
+    try:
+        operation = request_info["request"]["operation"]
+        namespace = request_info["request"]["namespace"]
+        kind = request_info["request"]["kind"]["kind"]
+        version = request_info["request"]["kind"]["version"]
+        podname = "(unknown)"
+        if "metadata" in request_info["request"]["object"]:
+            if "name" in request_info["request"]["object"]["metadata"]:
+                podname = request_info["request"]["object"]["metadata"]["name"]
+            elif "generateName" in request_info["request"]["object"]["metadata"]:
+                podname = "{}??".format(request_info["request"]["object"]["metadata"]["generateName"])
+    except KeyError as e:
+        print(e)
+        return jsonify({"response": {"allowed": True, "status": {"message": f"Malformed request: {e}"}}})
 
-    namespace = utils.get_namespace(request_info)
+    print(f"Processing {operation} operation on {kind}/{version} named {podname} in {namespace} namespace")
 
-    if namespace is not None:
-        labels = get_namespace_labels(namespace)
+    labels = get_namespace_labels(namespace)
+    if labels is not None:
+        projectId = labels[LABEL_KEY_LOOKING_FOR_ON_NAMESPACE]
+        label_key = LABEL_KEY_TO_ADD_TO_DEPLOYMENTS.replace('/', '~1')
 
-        if labels is not None:
-            projectId = labels[LABEL_KEY_LOOKING_FOR_ON_NAMESPACE]
-            label_key = LABEL_KEY_TO_ADD_TO_DEPLOYMENTS.replace('/', '~1')
+        print(f"Found label {labels} on namespace {namespace}")
+        print(f"Applied label {label_key}={projectId} to pod" )
 
-            utils.logging('LABELS FOUND', f"{labels} on namespace {namespace}")
-            utils.logging('LABELS APPLIED', f"{label_key}={projectId} added." )
-
-            return admission_response_patch(True, "Adding Rancher ProjectId Label to Deployment",
-                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/metadata/labels/{label_key}",
-                                                                        "value": projectId}]))
-
-    utils.logging('LABEL NOT FOUND', f"{LABEL_KEY_LOOKING_FOR_ON_NAMESPACE} not found on namespace {namespace}")
-
-    return jsonify({"response": {"allowed": True, "status": {"message": "No Rancher ProjectId found"}}})
-
+        return admission_response_patch(True, "Adding Rancher ProjectId Label to Pod",
+                                    json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/metadata/labels/{label_key}", "value": projectId}]))
+    else:
+        print(f"ERROR: label {LABEL_KEY_LOOKING_FOR_ON_NAMESPACE} not found on namespace {namespace}")
+        return jsonify({"response": {"allowed": True, "status": {"message": "No Rancher ProjectId found"}}})
 
 def admission_response_patch(allowed, message, json_patch):
     base64_patch = base64.b64encode(json_patch.to_string().encode("utf-8")).decode("utf-8")
