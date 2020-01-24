@@ -1,6 +1,6 @@
 SERVICE_FQDN=$1
 if [ -z "$SERVICE_FQDN" ]; then
-    echo "ERROR: Second parameter must be service FQDN"
+    echo "ERROR: First parameter must be service FQDN"
     exit 1
 fi
 
