@@ -35,10 +35,10 @@ def add_labels_deployment():
             label_key = LABEL_KEY_TO_ADD_TO_DEPLOYMENTS.replace('/', '~1')
 
             utils.logging('LABELS FOUND', f"{labels} on namespace {namespace}")
-            utils.logging('LABELS APPLIED', f"{label_key}={projectId} on pod template." )
+            utils.logging('LABELS APPLIED', f"{label_key}={projectId} added." )
 
             return admission_response_patch(True, "Adding Rancher ProjectId Label to Deployment",
-                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/spec/template/metadata/labels/{label_key}",
+                                        json_patch=jsonpatch.JsonPatch([{"op": "add", "path": f"/metadata/labels/{label_key}",
                                                                         "value": projectId}]))
 
     utils.logging('LABEL NOT FOUND', f"{LABEL_KEY_LOOKING_FOR_ON_NAMESPACE} not found on namespace {namespace}")

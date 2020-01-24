@@ -88,7 +88,7 @@ webhooks:
       caBundle: $(cat deploy/certs/ca.crt | base64 | tr -d '\n') # a base64 encoded self signed ca cert is needed because all Admission Webhooks need to be on SSL
     rules:
       - apiGroups: ["*"]
-        resources: ["deployments"]
+        resources: ["deployments", "pods"]
         apiVersions: ["*"]
         operations: ["CREATE", "UPDATE"]
 EOF
