@@ -16,6 +16,7 @@ SERVICE_NAME=addlabel-webhook
 NAMESPACE=aqua-addlabel-webhook
 BUILD_DIR=/tmp/aqua-addlabel-deploy # should be on local disk, not NFS
 DEBUG=0
+K8S_DEPLOYMENT_TYPE=DaemonSet  #if changed to deployment add replicas to manifest
 ### end configuraton
 
 # Ensure we have a $KUBECONFIG set
@@ -143,14 +144,13 @@ spec:
     app: add-labels
 ---
 apiVersion: apps/v1 # for versions before 1.8.0 use apps/v1beta1
-kind: Deployment
+kind: $K8S_DEPLOYMENT_TYPE
 metadata:
   name: add-labels
   namespace: $NAMESPACE
   labels:
     app: add-labels
 spec:
-  replicas: 2
   selector:
     matchLabels:
       app: add-labels
